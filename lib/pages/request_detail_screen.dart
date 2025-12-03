@@ -103,19 +103,23 @@ class RequestDetailScreen extends StatelessWidget {
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Icon(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
                                     FontAwesomeIcons.heart,
                                     color: Colors.white,
                                     size: 24,
                                   ),
-                                  SizedBox(width: 12),
-                                  Text(
-                                    'BUSCO VOLUNTÁRIOS',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
+                                  const SizedBox(width: 12),
+                                  Flexible(
+                                    child: Text(
+                                      'BUSCO VOLUNTÁRIOS',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],

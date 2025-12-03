@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'services/supabase_config.dart';
 import 'providers/auth_provider.dart';
 import 'providers/service_provider.dart';
 import 'providers/request_provider.dart';
+import 'providers/rating_provider.dart';
+import 'providers/notification_provider.dart';
 import 'pages/splash_screen.dart';
 
 void main() async {
@@ -25,10 +28,22 @@ class UNIFAZApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ServiceProvider()),
         ChangeNotifierProvider(create: (_) => RequestProvider()),
+        ChangeNotifierProvider(create: (_) => RatingProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: MaterialApp(
         title: 'UNIFAZ',
         debugShowCheckedModeBanner: false,
+        locale: const Locale('pt', 'BR'),
+        localizationsDelegates: [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('pt', 'BR'),
+          Locale('en', 'US'),
+        ],
         theme: ThemeData(
           primaryColor: const Color(0xFF87a492),
           colorScheme: ColorScheme.fromSeed(

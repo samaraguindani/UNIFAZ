@@ -1,15 +1,97 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/service.dart';
+// import '../models/availability_schedule.dart'; // Comentado - não usar mais
+// import '../models/time_slot.dart'; // Comentado - não usar mais
+import '../providers/auth_provider.dart';
+// import '../services/availability_service.dart'; // Comentado - não usar mais
 import 'user_profile_screen.dart';
+// import '../widgets/appointment_modal.dart'; // Comentado - agendamento desabilitado temporariamente
 
-class ServiceDetailScreen extends StatelessWidget {
+class ServiceDetailScreen extends StatefulWidget {
   final Service service;
 
   const ServiceDetailScreen({
     super.key,
     required this.service,
   });
+
+  @override
+  State<ServiceDetailScreen> createState() => _ServiceDetailScreenState();
+}
+
+class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
+  // COMENTADO: Não usar mais a tabela service_availability
+  // final AvailabilityService _availabilityService = AvailabilityService();
+  // AvailabilitySchedule? _availabilitySchedule;
+  bool _isLoadingAvailability = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Não precisa mais carregar da tabela service_availability
+    // Usar diretamente o campo availability do serviço
+    _isLoadingAvailability = false;
+  }
+
+  // COMENTADO: Não usar mais a tabela service_availability
+  /*
+  Future<void> _loadAvailability() async {
+    try {
+      final schedule = await _availabilityService
+          .getAvailabilityByServiceId(widget.service.id);
+      if (mounted) {
+        setState(() {
+          _availabilitySchedule = schedule;
+          _isLoadingAvailability = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingAvailability = false;
+        });
+      }
+    }
+  }
+
+  String _formatTimeSlots() {
+    if (_availabilitySchedule == null ||
+        _availabilitySchedule!.timeSlots.isEmpty) {
+      return 'Nenhum horário disponível configurado';
+    }
+
+    // Agrupa por dia da semana
+    final Map<int, List<TimeSlot>> groupedByDay = {};
+    for (var slot in _availabilitySchedule!.timeSlots) {
+      if (!groupedByDay.containsKey(slot.dayOfWeek)) {
+        groupedByDay[slot.dayOfWeek] = [];
+      }
+      groupedByDay[slot.dayOfWeek]!.add(slot);
+    }
+
+    // Ordena os dias
+    final sortedDays = groupedByDay.keys.toList()..sort();
+
+    final List<String> parts = [];
+    const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+    for (var day in sortedDays) {
+      final slots = groupedByDay[day]!;
+      // Ordena os horários do dia
+      slots.sort((a, b) => a.startTime.compareTo(b.startTime));
+      
+      final timeRanges = slots
+          .map((slot) => '${slot.startTime} - ${slot.endTime}')
+          .join(', ');
+      
+      parts.add('${days[day]}: $timeRanges');
+    }
+
+    return parts.join('\n');
+  }
+  */
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +120,7 @@ class ServiceDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      service.title,
+                      widget.service.title,
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -57,7 +139,7 @@ class ServiceDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          service.category.displayName,
+                          widget.service.category.displayName,
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
@@ -78,7 +160,7 @@ class ServiceDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '${service.city}, ${service.state}',
+                          '${widget.service.city}, ${widget.service.state}',
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
@@ -90,7 +172,7 @@ class ServiceDetailScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     
                     // Valor ou Voluntário
-                    if (service.isVoluntary)
+                    if (widget.service.isVoluntary)
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -134,8 +216,8 @@ class ServiceDetailScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              service.value != null
-                                  ? 'R\$ ${service.value!.toStringAsFixed(2)}'
+                              widget.service.value != null
+                                  ? 'R\$ ${widget.service.value!.toStringAsFixed(2)}'
                                   : 'A Combinar',
                               style: const TextStyle(
                                 color: Color(0xFFc9a56f),
@@ -145,7 +227,7 @@ class ServiceDetailScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              service.pricingType.displayName,
+                              widget.service.pricingType.displayName,
                               style: TextStyle(
                                 color: Colors.grey[600],
                                 fontSize: 14,
@@ -191,7 +273,7 @@ class ServiceDetailScreen extends StatelessWidget {
                         Expanded(
                           child: SingleChildScrollView(
                             child: Text(
-                              service.description,
+                              widget.service.description,
                               style: const TextStyle(
                                 fontSize: 16,
                                 height: 1.5,
@@ -209,7 +291,7 @@ class ServiceDetailScreen extends StatelessWidget {
             
             const SizedBox(height: 16),
             
-            // Disponibilidade
+            // Horários Disponíveis
             SizedBox(
               width: double.infinity,
               child: Card(
@@ -217,39 +299,48 @@ class ServiceDetailScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.15,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Disponibilidade',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            FontAwesomeIcons.clock,
+                            color: const Color(0xFF87a492),
+                            size: 20,
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Text(
-                              service.availability,
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Horários Disponíveis',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _isLoadingAvailability
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          : Text(
+                              widget.service.availability.isNotEmpty
+                                  ? widget.service.availability
+                                  : 'Nenhum horário disponível configurado',
                               style: const TextStyle(
-                                fontSize: 16,
-                                height: 1.5,
+                                fontSize: 14,
+                                height: 1.6,
                                 color: Colors.black87,
                               ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               ),
@@ -294,7 +385,7 @@ class ServiceDetailScreen extends StatelessWidget {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                service.contact,
+                                widget.service.contact,
                                 style: const TextStyle(
                                   fontSize: 16,
                                   color: Colors.black87,
@@ -312,6 +403,54 @@ class ServiceDetailScreen extends StatelessWidget {
             
             const SizedBox(height: 24),
             
+            // Botão de agendar (apenas se não for o próprio prestador)
+            // COMENTADO TEMPORARIAMENTE - Implementação de agendamento desabilitada
+            /*
+            Consumer<AuthProvider>(
+              builder: (context, authProvider, child) {
+                final isOwner = authProvider.currentUser?.id == widget.service.userId;
+                
+                if (!isOwner && authProvider.currentUser != null) {
+                  return Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            await showDialog(
+                              context: context,
+                              builder: (context) => AppointmentModal(
+                                service: widget.service,
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.calendar_today),
+                          label: const Text(
+                            'Agendar Serviço',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF87a492),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            */
+            
             // Botão ver perfil
             SizedBox(
               width: double.infinity,
@@ -322,7 +461,7 @@ class ServiceDetailScreen extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (context) => UserProfileScreen(
-                        userId: service.userId,
+                        userId: widget.service.userId,
                       ),
                     ),
                   );
@@ -399,7 +538,7 @@ class ServiceDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Publicado em ${_formatDate(service.createdAt)}',
+                      'Publicado em ${_formatDate(widget.service.createdAt)}',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 12,

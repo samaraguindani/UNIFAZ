@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/user.dart';
+import '../models/rating.dart';
 import '../services/auth_service.dart';
+import '../providers/rating_provider.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/common_widgets.dart';
+import 'rating_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -21,11 +26,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   User? _user;
   bool _isLoading = true;
   String? _errorMessage;
+  RatingStats? _ratingStats;
+  List<Rating> _ratings = [];
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    // Adiar a chamada de _loadRatings até após o build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadRatings();
+    });
   }
 
   Future<void> _loadUserProfile() async {
@@ -50,6 +61,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadRatings() async {
+    try {
+      final ratingProvider = context.read<RatingProvider>();
+      await ratingProvider.loadRatingsByUserId(widget.userId);
+      
+      if (mounted) {
+        setState(() {
+          _ratings = ratingProvider.ratings;
+          _ratingStats = ratingProvider.stats;
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar avaliações: $e');
+    }
+  }
+
+  Future<void> _navigateToRatingScreen() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RatingScreen(
+          toUserId: widget.userId,
+          toUser: _user,
+        ),
+      ),
+    );
+
+    if (result == true) {
+      _loadRatings();
     }
   }
 
@@ -161,6 +204,37 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     textAlign: TextAlign.center,
                                   ),
                                   
+                                  // Avaliação média
+                                  if (_ratingStats != null && _ratingStats!.totalRatings > 0) ...[
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        ...List.generate(5, (index) {
+                                          final rating = index + 1;
+                                          return Icon(
+                                            rating <= _ratingStats!.averageRating.round()
+                                                ? Icons.star
+                                                : Icons.star_border,
+                                            size: 20,
+                                            color: rating <= _ratingStats!.averageRating.round()
+                                                ? Colors.amber
+                                                : Colors.grey,
+                                          );
+                                        }),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${_ratingStats!.averageRating.toStringAsFixed(1)} (${_ratingStats!.totalRatings})',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  
                                   const SizedBox(height: 8),
                                   
                                   // Email
@@ -210,6 +284,91 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           ),
                           
                           const SizedBox(height: 16),
+                          
+                          // Botão de avaliar (se não for o próprio usuário)
+                          Consumer<AuthProvider>(
+                            builder: (context, authProvider, child) {
+                              if (authProvider.currentUser != null &&
+                                  authProvider.currentUser!.id != widget.userId) {
+                                return Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: ElevatedButton.icon(
+                                      onPressed: _navigateToRatingScreen,
+                                      icon: const Icon(Icons.star),
+                                      label: const Text('Avaliar Usuário'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF87a492),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                          
+                          const SizedBox(height: 16),
+                          
+                          // Avaliações
+                          if (_ratings.isNotEmpty) ...[
+                            Card(
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text(
+                                          'Avaliações',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        if (_ratingStats != null)
+                                          Text(
+                                            '${_ratingStats!.totalRatings} avaliações',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ..._ratings.take(5).map((rating) => _buildRatingCard(rating)),
+                                    if (_ratings.length > 5)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: Text(
+                                          'E mais ${_ratings.length - 5} avaliações...',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[600],
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                           
                           // Descrição (se existir)
                           if (_user!.description != null && _user!.description!.isNotEmpty) ...[
@@ -462,6 +621,53 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildRatingCard(Rating rating) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ...List.generate(5, (index) {
+                final starRating = index + 1;
+                return Icon(
+                  starRating <= rating.rating ? Icons.star : Icons.star_border,
+                  size: 16,
+                  color: starRating <= rating.rating ? Colors.amber : Colors.grey,
+                );
+              }),
+              const Spacer(),
+              Text(
+                _formatDate(rating.createdAt),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          if (rating.comment != null && rating.comment!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              rating.comment!,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

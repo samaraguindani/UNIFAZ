@@ -5,8 +5,12 @@ import '../providers/auth_provider.dart';
 import '../models/service.dart';
 import '../models/enums.dart';
 import '../models/location.dart';
+import '../models/time_slot.dart';
+import '../models/availability_schedule.dart';
 import '../services/location_service.dart';
+import '../services/availability_service.dart';
 import '../widgets/common_widgets.dart';
+// import 'availability_calendar_screen.dart'; // Comentado - modal desabilitado temporariamente
 
 class ServiceFormScreen extends StatefulWidget {
   final Service? service;
@@ -21,11 +25,13 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _availabilityController = TextEditingController();
   final _valueController = TextEditingController();
   final _contactController = TextEditingController();
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
+  final _availabilityController = TextEditingController();
+  
+  List<TimeSlot> _selectedTimeSlots = [];
 
   ServiceCategory _selectedCategory = ServiceCategory.outros;
   PricingType _selectedPricingType = PricingType.aCombinar;
@@ -52,11 +58,11 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _availabilityController.dispose();
     _valueController.dispose();
     _contactController.dispose();
     _cityController.dispose();
     _stateController.dispose();
+    _availabilityController.dispose();
     super.dispose();
   }
 
@@ -64,12 +70,34 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     final service = widget.service!;
     _titleController.text = service.title;
     _descriptionController.text = service.description;
-    _availabilityController.text = service.availability;
     _valueController.text = service.value?.toString() ?? '';
     _contactController.text = service.contact;
     _selectedCategory = service.category;
     _selectedPricingType = service.pricingType;
     _isVoluntary = service.isVoluntary;
+    
+    // Carregar horários de disponibilidade do campo do serviço
+    // COMENTADO: Não usar mais a tabela service_availability, apenas o campo texto
+    /*
+    final availabilityService = AvailabilityService();
+    final schedule = await availabilityService.getAvailabilityByServiceId(service.id);
+    if (schedule != null && schedule.timeSlots.isNotEmpty) {
+      // Converter horários para texto legível
+      _availabilityController.text = schedule.toDisplayString();
+      setState(() {
+        _selectedTimeSlots = schedule.timeSlots;
+      });
+    } else {
+      // Fallback para o campo antigo de disponibilidade
+      if (service.availability.isNotEmpty) {
+        _availabilityController.text = service.availability;
+      }
+    }
+    */
+    // Usar apenas o campo availability do serviço
+    if (service.availability.isNotEmpty) {
+      _availabilityController.text = service.availability;
+    }
     
     // Carregar estados
     await _loadStates();
@@ -224,21 +252,77 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
               
               const SizedBox(height: 16),
               
-              // Disponibilidade
+              // Disponibilidade - Campo de texto manual
               TextFormField(
                 controller: _availabilityController,
+                maxLines: 4,
                 decoration: const InputDecoration(
-                  labelText: 'Disponibilidade',
+                  labelText: 'Horários de Disponibilidade',
+                  hintText: 'Ex: Segunda a Sexta: 08:00 - 18:00\nSábado: 09:00 - 13:00',
                   border: OutlineInputBorder(),
-                  hintText: 'Ex: Segunda a sexta, 8h às 18h',
+                  alignLabelWithHint: true,
+                  helperText: 'Descreva seus horários de disponibilidade',
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira a disponibilidade';
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Por favor, informe seus horários de disponibilidade';
                   }
                   return null;
                 },
               ),
+              
+              // CÓDIGO DO MODAL COMENTADO TEMPORARIAMENTE
+              /*
+              // Disponibilidade - Calendário
+              InkWell(
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AvailabilityCalendarScreen(
+                        initialTimeSlots: _selectedTimeSlots.isNotEmpty 
+                            ? _selectedTimeSlots 
+                            : null,
+                        onSave: (timeSlots) {
+                          setState(() {
+                            _selectedTimeSlots = timeSlots;
+                          });
+                        },
+                      ),
+                    ),
+                  );
+                },
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Horários de Disponibilidade',
+                    border: OutlineInputBorder(),
+                    hintText: 'Toque para configurar os horários',
+                    suffixIcon: Icon(Icons.calendar_today),
+                  ),
+                  child: _selectedTimeSlots.isEmpty
+                      ? const Text(
+                          'Nenhum horário configurado',
+                          style: TextStyle(color: Colors.grey),
+                        )
+                      : Text(
+                          _getAvailabilityDisplayText(),
+                          style: const TextStyle(color: Colors.black87),
+                        ),
+                ),
+              ),
+              
+              if (_selectedTimeSlots.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, left: 12),
+                  child: Text(
+                    'Por favor, configure os horários de disponibilidade',
+                    style: TextStyle(
+                      color: Colors.red[700],
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              */
               
               const SizedBox(height: 16),
               
@@ -491,6 +575,18 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     );
   }
 
+  String _getAvailabilityDisplayText() {
+    if (_selectedTimeSlots.isEmpty) {
+      return 'Nenhum horário configurado';
+    }
+    
+    final schedule = AvailabilitySchedule(
+      serviceId: '',
+      timeSlots: _selectedTimeSlots,
+    );
+    return schedule.toDisplayString();
+  }
+
   Future<void> _saveService() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -506,6 +602,17 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
       return;
     }
 
+    // Validação de disponibilidade agora é feita pelo validator do campo de texto
+    // if (_selectedTimeSlots.isEmpty) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(
+    //       content: Text('Por favor, configure os horários de disponibilidade'),
+    //       backgroundColor: Colors.red,
+    //     ),
+    //   );
+    //   return;
+    // }
+
     setState(() {
       _isLoading = true;
     });
@@ -514,13 +621,32 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
       final authProvider = context.read<AuthProvider>();
       final serviceProvider = context.read<ServiceProvider>();
       
+      // Usar o texto do campo de disponibilidade diretamente
+      final availabilityText = _availabilityController.text.trim();
+      
+      // Garantir que o campo não esteja vazio (validação já foi feita pelo validator)
+      if (availabilityText.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Por favor, informe os horários de disponibilidade'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
       final service = Service(
         id: widget.service?.id ?? '',
         userId: authProvider.currentUser!.id,
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         category: _selectedCategory,
-        availability: _availabilityController.text.trim(),
+        availability: availabilityText, // Texto digitado pelo usuário
         value: _valueController.text.isNotEmpty 
             ? double.tryParse(_valueController.text) 
             : null,
@@ -534,11 +660,46 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
       );
 
       bool success;
+      String? serviceId;
+      Service? createdService;
+      
       if (widget.service == null) {
         success = await serviceProvider.createService(service);
+        // Buscar o serviço recém-criado
+        if (success) {
+          await serviceProvider.loadMyServices(authProvider.currentUser!.id);
+          final myServices = serviceProvider.myServices;
+          if (myServices.isNotEmpty) {
+            // Buscar o serviço mais recente com o mesmo título
+            createdService = myServices.firstWhere(
+              (s) => s.title == service.title && s.userId == service.userId,
+              orElse: () => myServices.first,
+            );
+            serviceId = createdService.id;
+          }
+        }
       } else {
+        serviceId = widget.service!.id;
         success = await serviceProvider.updateService(service);
       }
+
+      // Salvar horários de disponibilidade - COMENTADO: usando apenas texto agora
+      // Os horários são salvos no campo 'availability' do serviço como texto
+      /*
+      if (success && serviceId != null) {
+        try {
+          final availabilityService = AvailabilityService();
+          final availabilitySchedule = AvailabilitySchedule(
+            serviceId: serviceId,
+            timeSlots: _selectedTimeSlots,
+          );
+          await availabilityService.createOrUpdateAvailability(availabilitySchedule);
+        } catch (e) {
+          print('Erro ao salvar horários: $e');
+          // Não falha o salvamento do serviço se os horários falharem
+        }
+      }
+      */
 
       if (mounted) {
         if (success) {
@@ -563,6 +724,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         }
       }
     } catch (e) {
+      print('Erro ao salvar serviço: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -570,9 +732,12 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
             backgroundColor: Colors.red,
           ),
         );
+        setState(() {
+          _isLoading = false;
+        });
       }
     } finally {
-      if (mounted) {
+      if (mounted && _isLoading) {
         setState(() {
           _isLoading = false;
         });
